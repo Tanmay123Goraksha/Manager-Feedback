@@ -1,7 +1,9 @@
-<<<<<<< HEAD
+
 # FeedbackAI - Intelligent Feedback Management System
 
 A modern, AI-powered feedback tracking application built with React frontend and Express.js backend. Features real-time feedback management, intelligent AI assistance, and beautiful responsive design.
+Screenshot:
+<img width="959" height="475" alt="image" src="https://github.com/user-attachments/assets/d660d173-dada-4d10-960f-67bf8749f731" />
 
 
 ## 🚀 Features
