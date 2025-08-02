@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FeedbackAI - Intelligent Feedback Management</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        * {
+            font-family: 'Inter', sans-serif;
+        }
+        
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .card-hover {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .card-hover:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+        }
+        
+        .ai-glow {
+            box-shadow: 0 0 20px rgba(102, 126, 234, 0.4);
+            animation: pulse-glow 2s infinite;
+        }
+        
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 20px rgba(102, 126, 234, 0.4); }
+            50% { box-shadow: 0 0 30px rgba(102, 126, 234, 0.6); }
+        }
+        
+        .typing-animation::after {
+            content: '';
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #667eea;
+            animation: typing 1.4s infinite;
+            display: inline-block;
+            margin-left: 4px;
+        }
+        
+        @keyframes typing {
+            0%, 60%, 100% { opacity: 0; }
+            30% { opacity: 1; }
+        }
+        
+        .fade-in {
+            animation: fadeIn 0.5s ease-out forwards;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // Mock API functions (in real app, these would connect to your backend)
+        const mockAPI = {
+            async getFeedback() {
+                // Simulate API call
+                await new Promise(resolve => setTimeout(resolve, 500));
+                return JSON.parse(localStorage.getItem('feedback') || '[]');
+            },
+            
+            async createFeedback(feedback) {
+                await new Promise(resolve => setTimeout(resolve, 300));
+                const existing = JSON.parse(localStorage.getItem('feedback') || '[]');
+                const newFeedback = {
+                    id: Date.now(),
+                    ...feedback,
+                    createdAt: new Date().toISOString(),
+                    status: 'pending'
+                };
+                const updated = [newFeedback, ...existing];
+                localStorage.setItem('feedback', JSON.stringify(updated));
+                return newFeedback;
+            },
+            
+            async updateFeedback(id, updates) {
+                await new Promise(resolve => setTimeout(resolve, 300));
+                const existing = JSON.parse(localStorage.getItem('feedback') || '[]');
+                const updated = existing.map(item => 
+                    item.id === id ? { ...item, ...updates } : item
+                );
+                localStorage.setItem('feedback', JSON.stringify(updated));
+                return updated.find(item => item.id === id);
+            },
+            
+            async askAI(question) {
+                // Mock AI response - in real app, this would call OpenAI/Anthropic API
+                await new Promise(resolve => setTimeout(resolve, 1500));
+                
+                const responses = [
+                    `Based on your feedback data, I'd recommend focusing on user experience improvements. Consider implementing the most frequently requested features first.`,
+                    `This feedback indicates a strong demand for ${question.includes('feature') ? 'new functionality' : 'improvements'}. I suggest prioritizing based on user impact and development effort.`,
+                    `From an AI perspective, this type of feedback often correlates with user retention issues. I'd recommend addressing this within the next sprint cycle.`,
+                    `Interesting question! Based on patterns in similar feedback systems, users typically appreciate quick responses and transparent communication about feature requests.`,
+                    `This suggests an opportunity for UX enhancement. Consider conducting user interviews to dive deeper into the underlying needs behind this feedback.`
+                ];
+                
+                return responses[Math.floor(Math.random() * responses.length)];
+            }
+        };
+
+        const FeedbackCard = ({ feedback, onStatusChange }) => {
+            const statusColors = {
+                pending: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+                reviewed: 'bg-blue-100 text-blue-800 border-blue-200',
+                resolved: 'bg-green-100 text-green-800 border-green-200'
+            };
+
+            const priorityColors = {
+                low: 'text-gray-600',
+                medium: 'text-orange-600',
+                high: 'text-red-600'
+            };
+
+            return (
+                <div className="bg-white rounded-xl shadow-md card-hover p-6 fade-in">
+                    <div className="flex justify-between items-start mb-4">
+                        <div>
+                            <h3 className="font-semibold text-gray-900 text-lg">{feedback.title}</h3>
+                            <p className="text-gray-600 text-sm mt-1">
+                                {feedback.type} • {new Date(feedback.createdAt).toLocaleDateString()}
+                            </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <span className={`px-3 py-1 rounded-full text-xs font-medium ${priorityColors[feedback.priority]}`}>
+                                <i className="fas fa-flag mr-1"></i>
+                                {feedback.priority}
+                            </span>
+                            <select 
+                                value={feedback.status}
+                                onChange={(e) => onStatusChange(feedback.id, e.target.value)}
+                                className={`px-3 py-1 rounded-full text-xs font-medium border ${statusColors[feedback.status]} cursor-pointer`}
+                            >
+                                <option value="pending">Pending</option>
+                                <option value="reviewed">Reviewed</option>
+                                <option value="resolved">Resolved</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <p className="text-gray-700 mb-4">{feedback.description}</p>
+                    
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center text-sm text-gray-500">
+                            <i className="fas fa-user mr-2"></i>
+                            {feedback.email}
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-gray-400">
+                            <i className="fas fa-clock mr-1"></i>
+                            {new Date(feedback.createdAt).toLocaleTimeString()}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const AIAssistant = () => {
+            const [question, setQuestion] = useState('');
+            const [response, setResponse] = useState('');
+            const [isLoading, setIsLoading] = useState(false);
+            const [isExpanded, setIsExpanded] = useState(false);
+
+            const handleAskAI = async () => {
+                if (!question.trim()) return;
+                
+                setIsLoading(true);
+                setResponse('');
+                
+                try {
+                    const aiResponse = await mockAPI.askAI(question);
+                    setResponse(aiResponse);
+                } catch (error) {
+                    setResponse('Sorry, I encountered an error. Please try again.');
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+
+            return (
+                <div className={`transition-all duration-500 ${isExpanded ? 'fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center p-4' : ''}`}>
+                    <div className={`bg-white rounded-xl shadow-lg transition-all duration-500 ${isExpanded ? 'w-full max-w-2xl max-h-[80vh] overflow-hidden' : 'p-6'} ${!isExpanded && 'ai-glow'}`}>
+                        <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full flex items-center justify-center">
+                                    <i className="fas fa-robot text-white"></i>
+                                </div>
+                                <div>
+                                    <h3 className="font-semibold text-gray-900">AI Assistant</h3>
+                                    <p className="text-sm text-gray-600">Ask me anything about your feedback</p>
+                                </div>
+                            </div>
+                            {isExpanded && (
+                                <button 
+                                    onClick={() => setIsExpanded(false)}
+                                    className="text-gray-400 hover:text-gray-600 transition-colors"
+                                >
+                                    <i className="fas fa-times text-xl"></i>
+                                </button>
+                            )}
+                        </div>
+
+                        {isExpanded && (
+                            <div className="p-6 max-h-[60vh] overflow-y-auto">
+                                <div className="mb-4">
+                                    <textarea
+                                        value={question}
+                                        onChange={(e) => setQuestion(e.target.value)}
+                                        placeholder="Ask me to analyze feedback patterns, suggest improvements, or help prioritize features..."
+                                        className="w-full p-4 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                                        rows="3"
+                                    />
+                                    <button 
+                                        onClick={handleAskAI}
+                                        disabled={isLoading || !question.trim()}
+                                        className="mt-3 w-full bg-gradient-to-r from-blue-500 to-purple-600 text-white py-3 px-6 rounded-lg font-medium hover:from-blue-600 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                                    >
+                                        {isLoading ? (
+                                            <span className="flex items-center justify-center">
+                                                <i className="fas fa-spinner fa-spin mr-2"></i>
+                                                Analyzing...
+                                            </span>
+                                        ) : (
+                                            <span className="flex items-center justify-center">
+                                                <i className="fas fa-paper-plane mr-2"></i>
+                                                Ask AI
+                                            </span>
+                                        )}
+                                    </button>
+                                </div>
+
+                                {(isLoading || response) && (
+                                    <div className="bg-gray-50 rounded-lg p-4">
+                                        <div className="flex items-start gap-3">
+                                            <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
+                                                <i className="fas fa-robot text-white text-sm"></i>
+                                            </div>
+                                            <div className="flex-1">
+                                                {isLoading ? (
+                                                    <div className="typing-animation text-gray-600">
+                                                        Thinking
+                                                    </div>
+                                                ) : (
+                                                    <p className="text-gray-700 leading-relaxed">{response}</p>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {!isExpanded && (
+                            <button 
+                                onClick={() => setIsExpanded(true)}
+                                className="w-full bg-gradient-to-r from-blue-500 to-purple-600 text-white py-3 px-6 rounded-lg font-medium hover:from-blue-600 hover:to-purple-700 transition-all duration-200 flex items-center justify-center gap-2"
+                            >
+                                <i className="fas fa-comments"></i>
+                                Chat with AI
+                            </button>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        const NewFeedbackForm = ({ onSubmit, onClose }) => {
+            const [formData, setFormData] = useState({
+                title: '',
+                description: '',
+                type: 'bug',
+                priority: 'medium',
+                email: ''
+            });
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                onSubmit(formData);
+                setFormData({ title: '', description: '', type: 'bug', priority: 'medium', email: '' });
+            };
+
+            return (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+                        <div className="p-6">
+                            <div className="flex items-center justify-between mb-6">
+                                <h2 className="text-xl font-semibold text-gray-900">New Feedback</h2>
+                                <button 
+                                    onClick={onClose}
+                                    className="text-gray-400 hover:text-gray-600 transition-colors"
+                                >
+                                    <i className="fas fa-times text-xl"></i>
+                                </button>
+                            </div>
+
+                            <form onSubmit={handleSubmit} className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Title</label>
+                                    <input
+                                        type="text"
+                                        value={formData.title}
+                                        onChange={(e) => setFormData({...formData, title: e.target.value})}
+                                        className="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                        placeholder="Brief description of the issue or suggestion"
+                                        required
+                                    />
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">Type</label>
+                                        <select
+                                            value={formData.type}
+                                            onChange={(e) => setFormData({...formData, type: e.target.value})}
+                                            className="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                        >
+                                            <option value="bug">Bug Report</option>
+                                            <option value="feature">Feature Request</option>
+                                            <option value="improvement">Improvement</option>
+                                            <option value="other">Other</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">Priority</label>
+                                        <select
+                                            value={formData.priority}
+                                            onChange={(e) => setFormData({...formData, priority: e.target.value})}
+                                            className="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                        >
+                                            <option value="low">Low</option>
+                                            <option value="medium">Medium</option>
+                                            <option value="high">High</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                                    <input
+                                        type="email"
+                                        value={formData.email}
+                                        onChange={(e) => setFormData({...formData, email: e.target.value})}
+                                        className="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                        placeholder="your.email@example.com"
+                                        required
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                                    <textarea
+                                        value={formData.description}
+                                        onChange={(e) => setFormData({...formData, description: e.target.value})}
+                                        className="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                                        rows="4"
+                                        placeholder="Provide detailed information about your feedback..."
+                                        required
+                                    />
+                                </div>
+
+                                <div className="flex gap-3 pt-4">
+                                    <button
+                                        type="button"
+                                        onClick={onClose}
+                                        className="flex-1 px-4 py-3 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        className="flex-1 px-4 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg hover:from-blue-600 hover:to-purple-700 transition-all duration-200"
+                                    >
+                                        Submit Feedback
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const FeedbackTracker = () => {
+            const [feedback, setFeedback] = useState([]);
+            const [loading, setLoading] = useState(true);
+            const [showForm, setShowForm] = useState(false);
+            const [filter, setFilter] = useState('all');
+
+            useEffect(() => {
+                loadFeedback();
+            }, []);
+
+            const loadFeedback = async () => {
+                try {
+                    const data = await mockAPI.getFeedback();
+                    setFeedback(data);
+                } catch (error) {
+                    console.error('Error loading feedback:', error);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const handleCreateFeedback = async (formData) => {
+                try {
+                    const newFeedback = await mockAPI.createFeedback(formData);
+                    setFeedback(prev => [newFeedback, ...prev]);
+                    setShowForm(false);
+                } catch (error) {
+                    console.error('Error creating feedback:', error);
+                }
+            };
+
+            const handleStatusChange = async (id, status) => {
+                try {
+                    await mockAPI.updateFeedback(id, { status });
+                    setFeedback(prev => prev.map(item => 
+                        item.id === id ? { ...item, status } : item
+                    ));
+                } catch (error) {
+                    console.error('Error updating feedback:', error);
+                }
+            };
+
+            const filteredFeedback = feedback.filter(item => 
+                filter === 'all' || item.status === filter
+            );
+
+            const stats = {
+                total: feedback.length,
+                pending: feedback.filter(f => f.status === 'pending').length,
+                reviewed: feedback.filter(f => f.status === 'reviewed').length,
+                resolved: feedback.filter(f => f.status === 'resolved').length
+            };
+
+            return (
+                <div className="min-h-screen bg-gray-50">
+                    {/* Header */}
+                    <div className="gradient-bg text-white">
+                        <div className="max-w-7xl mx-auto px-4 py-8">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h1 className="text-3xl font-bold mb-2">FeedbackAI</h1>
+                                    <p className="text-blue-100">Intelligent feedback management with AI assistance</p>
+                                </div>
+                                <button
+                                    onClick={() => setShowForm(true)}
+                                    className="glass-effect px-6 py-3 rounded-lg font-medium hover:bg-white hover:bg-opacity-20 transition-all duration-200 flex items-center gap-2"
+                                >
+                                    <i className="fas fa-plus"></i>
+                                    New Feedback
+                                </button>
+                            </div>
+
+                            {/* Stats */}
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8">
+                                <div className="glass-effect p-4 rounded-lg text-center">
+                                    <div className="text-2xl font-bold">{stats.total}</div>
+                                    <div className="text-blue-100 text-sm">Total</div>
+                                </div>
+                                <div className="glass-effect p-4 rounded-lg text-center">
+                                    <div className="text-2xl font-bold">{stats.pending}</div>
+                                    <div className="text-blue-100 text-sm">Pending</div>
+                                </div>
+                                <div className="glass-effect p-4 rounded-lg text-center">
+                                    <div className="text-2xl font-bold">{stats.reviewed}</div>
+                                    <div className="text-blue-100 text-sm">Reviewed</div>
+                                </div>
+                                <div className="glass-effect p-4 rounded-lg text-center">
+                                    <div className="text-2xl font-bold">{stats.resolved}</div>
+                                    <div className="text-blue-100 text-sm">Resolved</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="max-w-7xl mx-auto px-4 py-8">
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                            {/* Main Content */}
+                            <div className="lg:col-span-2">
+                                {/* Filters */}
+                                <div className="flex gap-2 mb-6 overflow-x-auto">
+                                    {['all', 'pending', 'reviewed', 'resolved'].map(status => (
+                                        <button
+                                            key={status}
+                                            onClick={() => setFilter(status)}
+                                            className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-all duration-200 ${
+                                                filter === status 
+                                                    ? 'bg-blue-500 text-white shadow-md' 
+                                                    : 'bg-white text-gray-600 hover:bg-gray-100'
+                                            }`}
+                                        >
+                                            {status.charAt(0).toUpperCase() + status.slice(1)}
+                                        </button>
+                                    ))}
+                                </div>
+
+                                {/* Feedback List */}
+                                {loading ? (
+                                    <div className="text-center py-12">
+                                        <i className="fas fa-spinner fa-spin text-3xl text-gray-400 mb-4"></i>
+                                        <p className="text-gray-600">Loading feedback...</p>
+                                    </div>
+                                ) : filteredFeedback.length === 0 ? (
+                                    <div className="text-center py-12">
+                                        <i className="fas fa-inbox text-4xl text-gray-300 mb-4"></i>
+                                        <p className="text-gray-600 mb-4">
+                                            {filter === 'all' ? 'No feedback yet' : `No ${filter} feedback`}
+                                        </p>
+                                        <button
+                                            onClick={() => setShowForm(true)}
+                                            className="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 transition-colors"
+                                        >
+                                            Create First Feedback
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-4">
+                                        {filteredFeedback.map(item => (
+                                            <FeedbackCard 
+                                                key={item.id} 
+                                                feedback={item}
+                                                onStatusChange={handleStatusChange}
+                                            />
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Sidebar */}
+                            <div>
+                                <AIAssistant />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Forms */}
+                    {showForm && (
+                        <NewFeedbackForm 
+                            onSubmit={handleCreateFeedback}
+                            onClose={() => setShowForm(false)}
+                        />
+                    )}
+                </div>
+            );
+        };
+
+        ReactDOM.render(<FeedbackTracker />, document.getElementById('root'));
+    </script>
+</body>
+</html>
